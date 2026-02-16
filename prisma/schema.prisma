@@ -1,0 +1,403 @@
+// AfscheidPlanner Database Schema
+// Platform voor zelf-georganiseerde uitvaarten
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+// ==========================================
+// CORE MODELS
+// ==========================================
+
+model User {
+  id            String    @id @default(cuid())
+  clerkId       String    @unique
+  email         String    @unique
+  name          String?
+  phone         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  ceremonies    Ceremony[]
+  helperRoles   Helper[]
+  taskAssignments TaskAssignment[]
+}
+
+model Ceremony {
+  id            String    @id @default(cuid())
+  
+  // Eigenaar
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Over de overledene
+  deceasedName      String
+  deceasedBirthDate DateTime?
+  deceasedDeathDate DateTime
+  
+  // Planning
+  ceremonyDate      DateTime?
+  ceremonyTime      String?
+  ceremonyType      CeremonyType @default(BURIAL)
+  
+  // Locatie
+  locationName      String?
+  locationAddress   String?
+  
+  // Status & Betaling
+  status        CeremonyStatus @default(ACTIVE)
+  package       PackageType    @default(STANDARD)
+  stripePaymentId String?
+  paidAt        DateTime?
+  
+  // Budget
+  budgetLimit   Float?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  tasks         Task[]
+  helpers       Helper[]
+  expenses      Expense[]
+  suppliers     CeremonySupplier[]
+  photos        Photo[]
+  condolences   Condolence[]
+}
+
+enum CeremonyType {
+  BURIAL
+  CREMATION
+  NATURAL_BURIAL
+  OTHER
+}
+
+enum CeremonyStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PackageType {
+  BASIC       // €49
+  STANDARD    // €99
+  PREMIUM     // €199
+}
+
+// ==========================================
+// TAKEN SYSTEEM
+// ==========================================
+
+model TaskTemplate {
+  id            String    @id @default(cuid())
+  
+  // Task info
+  title         String
+  description   String?
+  category      TaskCategory
+  
+  // Timing
+  daysBeforeCeremony Int?     // null = geen specifieke deadline
+  isRequired    Boolean   @default(false)
+  isLegal       Boolean   @default(false)  // Wettelijk verplicht
+  
+  // Ordering
+  sortOrder     Int       @default(0)
+  
+  // Dependencies
+  dependsOnId   String?
+  dependsOn     TaskTemplate? @relation("TaskDependencies", fields: [dependsOnId], references: [id])
+  dependents    TaskTemplate[] @relation("TaskDependencies")
+  
+  // Links
+  helpUrl       String?   // Link naar hulpartikel
+  
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  tasks         Task[]
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  
+  // Link to ceremony
+  ceremonyId    String
+  ceremony      Ceremony  @relation(fields: [ceremonyId], references: [id], onDelete: Cascade)
+  
+  // Link to template (optional - custom tasks don't have template)
+  templateId    String?
+  template      TaskTemplate? @relation(fields: [templateId], references: [id])
+  
+  // Task details (can override template)
+  title         String
+  description   String?
+  category      TaskCategory
+  
+  // Status
+  status        TaskStatus @default(TODO)
+  completedAt   DateTime?
+  
+  // Timing
+  dueDate       DateTime?
+  
+  // Notes
+  notes         String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  assignments   TaskAssignment[]
+}
+
+model TaskAssignment {
+  id            String    @id @default(cuid())
+  
+  taskId        String
+  task          Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  
+  // Assigned to registered user
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  
+  // Or assigned to helper (who may not be registered)
+  helperId      String?
+  helper        Helper?   @relation(fields: [helperId], references: [id])
+  
+  assignedAt    DateTime  @default(now())
+  
+  @@unique([taskId, userId])
+  @@unique([taskId, helperId])
+}
+
+enum TaskCategory {
+  LEGAL           // Wettelijke verplichtingen (aktes, gemeente)
+  PLANNING        // Planning & organisatie
+  LOCATION        // Locatie & faciliteiten
+  CEREMONY        // De ceremonie zelf
+  CATERING        // Eten & drinken
+  FLOWERS         // Bloemen & decoratie
+  TRANSPORT       // Vervoer
+  PRINTING        // Drukwerk (kaarten, fotoboek)
+  MUSIC           // Muziek
+  COMMUNICATION   // Familie & vrienden informeren
+  FINANCIAL       // Financieel & administratief
+  AFTERCARE       // Na de uitvaart
+  OTHER           // Overig
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  WAITING         // Wachtend op iets/iemand
+  COMPLETED
+  SKIPPED
+}
+
+// ==========================================
+// HELPERS (Familie/Vrienden)
+// ==========================================
+
+model Helper {
+  id            String    @id @default(cuid())
+  
+  ceremonyId    String
+  ceremony      Ceremony  @relation(fields: [ceremonyId], references: [id], onDelete: Cascade)
+  
+  // Kan gekoppeld zijn aan user account
+  userId        String?
+  user          User?     @relation(fields: [userId], references: [id])
+  
+  // Of alleen naam/email (nog niet geregistreerd)
+  name          String
+  email         String?
+  phone         String?
+  
+  // Rol
+  role          HelperRole @default(HELPER)
+  
+  // Invite status
+  inviteToken   String?   @unique
+  invitedAt     DateTime  @default(now())
+  acceptedAt    DateTime?
+  
+  createdAt     DateTime  @default(now())
+  
+  // Relations
+  taskAssignments TaskAssignment[]
+  
+  @@unique([ceremonyId, email])
+}
+
+enum HelperRole {
+  OWNER           // Eigenaar van het plan
+  ADMIN           // Mede-beheerder
+  HELPER          // Kan taken uitvoeren
+  VIEWER          // Alleen inzien
+}
+
+// ==========================================
+// LEVERANCIERS
+// ==========================================
+
+model Supplier {
+  id            String    @id @default(cuid())
+  
+  name          String
+  description   String?
+  category      SupplierCategory
+  
+  // Contact
+  email         String?
+  phone         String?
+  website       String?
+  
+  // Locatie
+  city          String?
+  region        String?   // Provincie
+  
+  // Pricing
+  priceRange    String?   // "€500-€1500"
+  
+  // Status
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  
+  // Stats
+  rating        Float?
+  reviewCount   Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  ceremonies    CeremonySupplier[]
+}
+
+model CeremonySupplier {
+  id            String    @id @default(cuid())
+  
+  ceremonyId    String
+  ceremony      Ceremony  @relation(fields: [ceremonyId], references: [id], onDelete: Cascade)
+  
+  supplierId    String
+  supplier      Supplier  @relation(fields: [supplierId], references: [id])
+  
+  // Status
+  status        SupplierStatus @default(CONSIDERING)
+  
+  // Pricing
+  quotedPrice   Float?
+  agreedPrice   Float?
+  
+  notes         String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([ceremonyId, supplierId])
+}
+
+enum SupplierCategory {
+  COFFIN          // Kisten & urnen
+  LOCATION        // Uitvaartlocaties, aula's
+  CATERING        // Catering
+  FLOWERS         // Bloemisten
+  TRANSPORT       // Rouwvervoer
+  PRINTING        // Drukwerk
+  MUSIC           // Muzikanten, DJ
+  PHOTOGRAPHY     // Fotografie/video
+  CELEBRANT       // Sprekers/ritueel begeleiders
+  CEMETERY        // Begraafplaatsen
+  CREMATORIUM     // Crematoria
+  OTHER           // Overig
+}
+
+enum SupplierStatus {
+  CONSIDERING     // In overweging
+  CONTACTED       // Contact gehad
+  QUOTED          // Offerte ontvangen
+  BOOKED          // Geboekt
+  CANCELLED       // Geannuleerd
+}
+
+// ==========================================
+// BUDGET & KOSTEN
+// ==========================================
+
+model Expense {
+  id            String    @id @default(cuid())
+  
+  ceremonyId    String
+  ceremony      Ceremony  @relation(fields: [ceremonyId], references: [id], onDelete: Cascade)
+  
+  // Details
+  description   String
+  category      SupplierCategory
+  amount        Float
+  
+  // Status
+  isPaid        Boolean   @default(false)
+  paidAt        DateTime?
+  
+  // Optional link to supplier
+  supplierId    String?
+  
+  notes         String?
+  receiptUrl    String?   // Uploaded receipt
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ==========================================
+// HERINNERINGEN (Premium feature)
+// ==========================================
+
+model Photo {
+  id            String    @id @default(cuid())
+  
+  ceremonyId    String
+  ceremony      Ceremony  @relation(fields: [ceremonyId], references: [id], onDelete: Cascade)
+  
+  url           String
+  thumbnailUrl  String?
+  caption       String?
+  
+  uploadedBy    String?   // Name of uploader
+  
+  createdAt     DateTime  @default(now())
+}
+
+model Condolence {
+  id            String    @id @default(cuid())
+  
+  ceremonyId    String
+  ceremony      Ceremony  @relation(fields: [ceremonyId], references: [id], onDelete: Cascade)
+  
+  name          String
+  email         String?
+  message       String
+  
+  isApproved    Boolean   @default(true)
+  
+  createdAt     DateTime  @default(now())
+}
+
+// ==========================================
+// WAITLIST (Pre-launch)
+// ==========================================
+
+model WaitlistEntry {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  source        String?   // Where they heard about us
+  createdAt     DateTime  @default(now())
+}
