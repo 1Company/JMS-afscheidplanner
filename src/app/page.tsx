@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { HeroSlider } from '@/components/HeroSlider'
 import { 
   CheckCircle2, 
   Users, 
@@ -39,8 +40,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="container mx-auto px-4 py-16 md:py-24">
+      {/* Hero with Background Slider */}
+      <HeroSlider>
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-4xl md:text-5xl font-bold text-slate-900 leading-tight mb-6">
             Zelf een uitvaart organiseren,{' '}
@@ -58,14 +59,14 @@ export default function Home() {
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
             </Button>
-            <Button size="lg" variant="outline" asChild>
+            <Button size="lg" variant="outline" className="bg-white/80 hover:bg-white" asChild>
               <Link href="#hoe-werkt-het">
                 Bekijk hoe het werkt
               </Link>
             </Button>
           </div>
         </div>
-      </section>
+      </HeroSlider>
 
       {/* Trust indicators */}
       <section className="border-y bg-slate-50">
