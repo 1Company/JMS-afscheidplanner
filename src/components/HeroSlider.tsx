@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react'
 // Respectvolle, warme achtergrondafbeeldingen van Unsplash
 const slides = [
   {
-    url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=1920&q=80&auto=format&fit=crop',
-    alt: 'Zonlicht door bomen in een bos'
+    url: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1920&q=80&auto=format&fit=crop',
+    alt: 'Rustig groen landschap met heuvels'
   },
   {
     url: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=1920&q=80&auto=format&fit=crop',
