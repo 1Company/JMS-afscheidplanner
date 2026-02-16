@@ -400,3 +400,30 @@ model WaitlistEntry {
   source        String?   // Where they heard about us
   createdAt     DateTime  @default(now())
 }
+
+// ==========================================
+// BLOG / ARTIKELEN
+// ==========================================
+
+model Article {
+  id            String    @id @default(cuid())
+  
+  slug          String    @unique
+  title         String
+  excerpt       String?   // Korte samenvatting
+  content       String    // Markdown content
+  
+  // SEO
+  metaTitle     String?
+  metaDescription String?
+  
+  // Status
+  isPublished   Boolean   @default(true)
+  publishedAt   DateTime  @default(now())
+  
+  // Stats
+  views         Int       @default(0)
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
